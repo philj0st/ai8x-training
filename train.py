@@ -1070,6 +1070,29 @@ def _validate(data_loader, model, criterion, loggers, args, epoch=-1, tflogger=N
                 distiller.log_training_progress(stats, None, epoch, steps_completed,
                                                 total_steps, args.print_freq, loggers)
 
+                # from torchvision.utils import draw_segmentation_masks
+                # __import__('pdb').set_trace()
+                if True and tflogger is not None:
+                    # log 1 figure per epoch
+                    plt = matplotlib.pyplot
+                    fig, (ax1, ax2, ax3) = plt.subplots(1,3)
+                    ax1.axis('off')
+                    ax2.axis('off')
+                    ax3.axis('off')
+                    ax1.imshow(inputs[0,0,:,:].cpu().numpy())
+                    ax2.imshow(output[0,1,:,:].cpu().numpy())
+                    ax3.imshow(target[0,:,:].cpu().numpy())
+
+                    tflogger.tblogger.writer.add_figure('input-output-target',plt.gcf(),validation_step)
+
+                #     class_dim = 1
+                #     # for people only
+                #     boolmask = (output[0,:,:,:].argmax(class_dim) == 1)
+                #     # draw on empty image for now .. need to unfold the 48,88,88 first
+                #     masks = draw_segmentation_masks(torch.empty(352,352),boolmask)
+                #     tflogger.tblogger.writer.add_images('target', torch.resize(target,(-1,352,352,1)))
+                #     tflogger.tblogger.writer.add_image('output', masks, dataformats='NCHW')
+
                 if args.display_prcurves and tflogger is not None:
                     test_probs = torch.cat([torch.stack(batch) for batch in class_probs])
                     test_preds = torch.cat(class_preds)
