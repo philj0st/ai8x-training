@@ -130,6 +130,9 @@ weight_sum = None
 weight_stddev = None
 weight_mean = None
 
+from pytorch_toolbelt.losses import DiceLoss
+import segmentation_models_pytorch as smp
+
 
 def main():
     """main"""
@@ -1084,17 +1087,39 @@ def _validate(data_loader, model, criterion, loggers, args, epoch=-1, tflogger=N
                     ax2.imshow(output[0,1,:,:].cpu().numpy())
                     ax3.imshow(target[0,:,:].cpu().numpy())
 
-                    tflogger.tblogger.writer.add_figure('input-output-target',plt.gcf(),validation_step)
+                    tflogger.tblogger.writer.add_figure('input-output-target',plt.gcf(), epoch)
 
                     # percent of `people` pixel per image
                     h, w = target.size(dim=1), target.size(dim=2)
                     percentages = torch.sum(target,dim=(1,2)).div(h*w/100).cpu().numpy()
 
-                    tflogger.tblogger.writer.add_histogram('percent of people pixel', percentages, validation_step)
+                    tflogger.tblogger.writer.add_histogram('percent of people pixel', percentages, epoch)
 
-                #     class_dim = 1
-                #     # for people only
-                #     boolmask = (output[0,:,:,:].argmax(class_dim) == 1)
+                    # dice loss
+                    diceloss = DiceLoss(mode='binary')(output[:,1,:,:], target)
+                    tflogger.tblogger.writer.add_scalar('Loss/DiceLoss', diceloss, epoch)
+
+                    #TODO: add_scalars with multiple different thresholds
+                    # first compute statistics for true positives, false positives, false negative and
+                    # true negative "pixels"
+                    tp, fp, fn, tn = smp.metrics.get_stats(output[:,1,:,:], target, mode='binary', threshold=0.5)
+
+                    # then compute metrics with required reduction (see metric docs)
+                    iou_score = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+                    f1_score = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
+                    f2_score = smp.metrics.fbeta_score(tp, fp, fn, tn, beta=2, reduction="micro")
+                    accuracy = smp.metrics.accuracy(tp, fp, fn, tn, reduction="macro")
+                    recall = smp.metrics.recall(tp, fp, fn, tn, reduction="micro-imagewise")
+
+                    tflogger.tblogger.writer.add_scalar('Metrics/IOU', iou_score, epoch)
+                    tflogger.tblogger.writer.add_scalar('Metrics/F1', f1_score, epoch)
+                    tflogger.tblogger.writer.add_scalar('Metrics/F2', f2_score, epoch)
+                    tflogger.tblogger.writer.add_scalar('Metrics/accuracy', accuracy, epoch)
+                    tflogger.tblogger.writer.add_scalar('Metrics/recall', recall, epoch)
+
+                    # class_dim = 1
+                    # # for people only
+                    # boolmask = (output[:,:,:,:].argmax(class_dim) == 1)
                 #     # draw on empty image for now .. need to unfold the 48,88,88 first
                 #     masks = draw_segmentation_masks(torch.empty(352,352),boolmask)
                 #     tflogger.tblogger.writer.add_images('target', torch.resize(target,(-1,352,352,1)))
