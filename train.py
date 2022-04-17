@@ -132,6 +132,7 @@ weight_mean = None
 
 from pytorch_toolbelt.losses import DiceLoss
 import segmentation_models_pytorch as smp
+import  torchvision.utils 
 
 
 def main():
@@ -1074,7 +1075,6 @@ def _validate(data_loader, model, criterion, loggers, args, epoch=-1, tflogger=N
                 distiller.log_training_progress(stats, None, epoch, steps_completed,
                                                 total_steps, args.print_freq, loggers)
 
-                # from torchvision.utils import draw_segmentation_masks
                 # __import__('pdb').set_trace()
                 if True and tflogger is not None:
                     # log 1 figure per epoch
@@ -1117,12 +1117,25 @@ def _validate(data_loader, model, criterion, loggers, args, epoch=-1, tflogger=N
                     tflogger.tblogger.writer.add_scalar('Metrics/accuracy', accuracy, epoch)
                     tflogger.tblogger.writer.add_scalar('Metrics/recall', recall, epoch)
 
-                    # class_dim = 1
-                    # # for people only
-                    # boolmask = (output[:,:,:,:].argmax(class_dim) == 1)
-                #     # draw on empty image for now .. need to unfold the 48,88,88 first
-                #     masks = draw_segmentation_masks(torch.empty(352,352),boolmask)
-                #     tflogger.tblogger.writer.add_images('target', torch.resize(target,(-1,352,352,1)))
+                    # unfold the input images
+                    unfolded = torch.empty_like(inputs).reshape((-1,3,352,352))
+                    # hardcoded for fold_ratio=4 for now.
+                    # improve with torch.slice_scatter
+                    for i in range(4):
+                        for j in range(4):
+                            slice = (i*12 + j*3)
+                            unfolded[:,:,i::4,j::4] = inputs[:,slice:slice+3,:,:]
+
+                    # for i in range(unfolded.size(dim=0)):
+                    #     unfolded[i] = torchvision.utils.draw_segmentation_masks((unfolded[i]*255).uint8(),target)
+
+                    grid = torchvision.utils.make_grid(unfolded)
+                    tflogger.tblogger.writer.add_image('masks', grid, epoch)
+                    del unfolded
+
+                    grid = torchvision.utils.make_grid(output)
+                    tflogger.tblogger.writer.add_image('masks', grid, epoch)
+
                 #     tflogger.tblogger.writer.add_image('output', masks, dataformats='NCHW')
 
                 if args.display_prcurves and tflogger is not None:
