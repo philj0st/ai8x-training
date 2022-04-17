@@ -711,6 +711,7 @@ def train(train_loader, model, criterion, optimizer, epoch,
         data_time.add(time.time() - end)
         inputs, target = inputs.to(args.device), target.to(args.device)
 
+
         # Set nas parameters if necessary
         if args.nas:
             if stage == 1:
@@ -1084,6 +1085,12 @@ def _validate(data_loader, model, criterion, loggers, args, epoch=-1, tflogger=N
                     ax3.imshow(target[0,:,:].cpu().numpy())
 
                     tflogger.tblogger.writer.add_figure('input-output-target',plt.gcf(),validation_step)
+
+                    # percent of `people` pixel per image
+                    h, w = target.size(dim=1), target.size(dim=2)
+                    percentages = torch.sum(target,dim=(1,2)).div(h*w/100).cpu().numpy()
+
+                    tflogger.tblogger.writer.add_histogram('percent of people pixel', percentages, validation_step)
 
                 #     class_dim = 1
                 #     # for people only
